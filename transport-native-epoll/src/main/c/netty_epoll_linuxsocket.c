@@ -63,6 +63,11 @@
 #define UDP_GRO 104
 #endif
 
+// IPPROTO_MPTCP is defined in linux 5.6. We define this here so older kernels can compile.
+#ifndef IPPROTO_MPTCP
+#define IPPROTO_MPTCP 262
+#endif
+
 static jweak peerCredentialsClassWeak = NULL;
 static jmethodID peerCredentialsMethodId = NULL;
 
@@ -651,6 +656,62 @@ static void netty_epoll_linuxsocket_getTcpInfo(JNIEnv* env, jclass clazz, jint f
      (*env)->SetLongArrayRegion(env, array, 0, 32, cArray);
 }
 
+static jint netty_epoll_linuxsocket_newMpTcpSocketStreamFd(JNIEnv* env, jclass clazz, jboolean ipv6) {
+    int domain = ipv6 == JNI_TRUE ? AF_INET6 : AF_INET;
+    int fd = netty_unix_socket_nonBlockingSocket(domain, type, IPPROTO_MPTCP);
+    if (fd == -1) {
+        return -errno;
+    } else if (domain == AF_INET6) {
+        if (netty_unix_socket_enableDualStack(env, fd) == -1) {
+            return -1;
+        }
+    }
+    return fd;
+}
+
+//static void netty_epoll_linuxsocket_getMpTcpInfo(JNIEnv* env, jclass clazz, jint fd, jlongArray array) {
+//     struct tcp_info tcp_info;
+//     if (netty_unix_socket_getOption(env, fd, IPPROTO_MPTCP, MPTCP_INFO, &tcp_info, sizeof(tcp_info)) == -1) {
+//         return;
+//     }
+//     jlong cArray[32];
+//     // Expand to 64 bits, then cast away unsigned-ness.
+//     cArray[0] = (jlong) (uint64_t) tcp_info.tcpi_state;
+//     cArray[1] = (jlong) (uint64_t) tcp_info.tcpi_ca_state;
+//     cArray[2] = (jlong) (uint64_t) tcp_info.tcpi_retransmits;
+//     cArray[3] = (jlong) (uint64_t) tcp_info.tcpi_probes;
+//     cArray[4] = (jlong) (uint64_t) tcp_info.tcpi_backoff;
+//     cArray[5] = (jlong) (uint64_t) tcp_info.tcpi_options;
+//     cArray[6] = (jlong) (uint64_t) tcp_info.tcpi_snd_wscale;
+//     cArray[7] = (jlong) (uint64_t) tcp_info.tcpi_rcv_wscale;
+//     cArray[8] = (jlong) (uint64_t) tcp_info.tcpi_rto;
+//     cArray[9] = (jlong) (uint64_t) tcp_info.tcpi_ato;
+//     cArray[10] = (jlong) (uint64_t) tcp_info.tcpi_snd_mss;
+//     cArray[11] = (jlong) (uint64_t) tcp_info.tcpi_rcv_mss;
+//     cArray[12] = (jlong) (uint64_t) tcp_info.tcpi_unacked;
+//     cArray[13] = (jlong) (uint64_t) tcp_info.tcpi_sacked;
+//     cArray[14] = (jlong) (uint64_t) tcp_info.tcpi_lost;
+//     cArray[15] = (jlong) (uint64_t) tcp_info.tcpi_retrans;
+//     cArray[16] = (jlong) (uint64_t) tcp_info.tcpi_fackets;
+//     cArray[17] = (jlong) (uint64_t) tcp_info.tcpi_last_data_sent;
+//     cArray[18] = (jlong) (uint64_t) tcp_info.tcpi_last_ack_sent;
+//     cArray[19] = (jlong) (uint64_t) tcp_info.tcpi_last_data_recv;
+//     cArray[20] = (jlong) (uint64_t) tcp_info.tcpi_last_ack_recv;
+//     cArray[21] = (jlong) (uint64_t) tcp_info.tcpi_pmtu;
+//     cArray[22] = (jlong) (uint64_t) tcp_info.tcpi_rcv_ssthresh;
+//     cArray[23] = (jlong) (uint64_t) tcp_info.tcpi_rtt;
+//     cArray[24] = (jlong) (uint64_t) tcp_info.tcpi_rttvar;
+//     cArray[25] = (jlong) (uint64_t) tcp_info.tcpi_snd_ssthresh;
+//     cArray[26] = (jlong) (uint64_t) tcp_info.tcpi_snd_cwnd;
+//     cArray[27] = (jlong) (uint64_t) tcp_info.tcpi_advmss;
+//     cArray[28] = (jlong) (uint64_t) tcp_info.tcpi_reordering;
+//     cArray[29] = (jlong) (uint64_t) tcp_info.tcpi_rcv_rtt;
+//     cArray[30] = (jlong) (uint64_t) tcp_info.tcpi_rcv_space;
+//     cArray[31] = (jlong) (uint64_t) tcp_info.tcpi_total_retrans;
+//
+//     (*env)->SetLongArrayRegion(env, array, 0, 32, cArray);
+//}
+
 static jint netty_epoll_linuxsocket_isTcpCork(JNIEnv* env, jclass clazz, jint fd) {
     int optval;
     if (netty_unix_socket_getOption(env, fd, IPPROTO_TCP, TCP_CORK, &optval, sizeof(optval)) == -1) {
@@ -803,7 +864,8 @@ static const JNINativeMethod fixed_method_table[] = {
   { "leaveGroup", "(IZ[B[BII)V", (void *) netty_epoll_linuxsocket_leaveGroup },
   { "leaveSsmGroup", "(IZ[B[BII[B)V", (void *) netty_epoll_linuxsocket_leaveSsmGroup },
   { "isUdpGro", "(I)I", (void *) netty_epoll_linuxsocket_isUdpGro },
-  { "setUdpGro", "(II)V", (void *) netty_epoll_linuxsocket_setUdpGro }
+  { "setUdpGro", "(II)V", (void *) netty_epoll_linuxsocket_setUdpGro },
+  { "newMpTcpSocketStreamFd", "(Z)I", (void *) netty_epoll_linuxsocket_newMpTcpSocketStreamFd }
 
   // "sendFile" has a dynamic signature
 };
@@ -823,7 +885,7 @@ static JNINativeMethod* createDynamicMethodsTable(const char* packagePrefix) {
     }
     memset(dynamicMethods, 0, size);
     memcpy(dynamicMethods, fixed_method_table, sizeof(fixed_method_table));
-  
+
     JNINativeMethod* dynamicMethod = &dynamicMethods[fixed_method_table_size];
     NETTY_JNI_UTIL_PREPEND(packagePrefix, "io/netty/channel/unix/PeerCredentials;", dynamicTypeName, error);
     NETTY_JNI_UTIL_PREPEND("(I)L", dynamicTypeName,  dynamicMethod->signature, error);

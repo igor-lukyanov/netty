@@ -417,6 +417,18 @@ public final class LinuxSocket extends Socket {
         return new LinuxSocket(newSocketDomainDgram0());
     }
 
+    public static int newMpTcpSocketStream0(InternetProtocolFamily protocol) {
+        return newMpTcpSocketStream0(shouldUseIpv6(protocol));
+    }
+
+    protected static int newMpTcpSocketStream0(boolean ipv6) {
+        int res = newMpTcpSocketStreamFd(ipv6);
+        if (res < 0) {
+            throw new ChannelException(newIOException("newMpTcpSocketStream", res));
+        }
+        return res;
+    }
+
     private static InetAddress unsafeInetAddrByName(String inetName) {
         try {
             return InetAddress.getByName(inetName);
@@ -425,6 +437,7 @@ public final class LinuxSocket extends Socket {
         }
     }
 
+    private static native int newMpTcpSocketStreamFd(boolean ipv6);
     private static native int newVSockStreamFd();
     private static native int bindVSock(int fd, int cid, int port);
     private static native int connectVSock(int fd, int cid, int port);

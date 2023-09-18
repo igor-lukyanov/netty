@@ -682,6 +682,7 @@ public class Socket extends FileDescriptor {
     private static native int msgFastopen();
 
     private static native int newSocketStreamFd(boolean ipv6);
+
     private static native int newSocketDgramFd(boolean ipv6);
     private static native int newSocketDomainFd();
     private static native int newSocketDomainDgramFd();

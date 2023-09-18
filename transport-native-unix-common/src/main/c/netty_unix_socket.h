@@ -27,6 +27,7 @@ jbyteArray netty_unix_socket_createInetSocketAddressArray(JNIEnv* env, const str
 int netty_unix_socket_getOption(JNIEnv* env, jint fd, int level, int optname, void* optval, socklen_t optlen);
 int netty_unix_socket_setOption(JNIEnv* env, jint fd, int level, int optname, const void* optval, socklen_t len);
 int netty_unix_socket_ipAddressLength(const struct sockaddr_storage* addr);
+int netty_unix_socket_enableDualStack(JNIEnv* env, int fd);
 
 // These method is sometimes needed if you want to special handle some errno value before throwing an exception.
 int netty_unix_socket_getOption0(jint fd, int level, int optname, void* optval, socklen_t optlen);

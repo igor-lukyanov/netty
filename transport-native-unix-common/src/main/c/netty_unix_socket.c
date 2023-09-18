@@ -288,24 +288,31 @@ static int netty_unix_socket_setOption0(jint fd, int level, int optname, const v
     return setsockopt(fd, level, optname, optval, len);
 }
 
+int netty_unix_socket_enableDualStack(JNIEnv* env, int fd) {
+    int optval = 0;
+    // Try to allow listen /connect ipv4 and ipv6
+    if (netty_unix_socket_setOption0(fd, IPPROTO_IPV6, IPV6_V6ONLY, &optval, sizeof(optval)) < 0) {
+        if (errno != EAFNOSUPPORT) {
+            netty_unix_socket_setOptionHandleError(env, errno);
+            // Something went wrong so close the fd and return here. setOption(...) itself throws the exception already.
+            close(fd);
+            return -1;
+        }
+        // else we failed to enable dual stack mode.
+        // It is assumed the socket is re‐stricted to sending and receiving IPv6 packets only.
+        // Don't close fd and don't return -1. At best we can do is log.
+        // TODO: bubble this up to an actual Logger.
+    }
+    return 0;
+}
+
 static jint _socket(JNIEnv* env, jclass clazz, int domain, int type) {
     int fd = netty_unix_socket_nonBlockingSocket(domain, type, 0);
     if (fd == -1) {
         return -errno;
     } else if (domain == AF_INET6) {
-        // Try to allow listen /connect ipv4 and ipv6
-        int optval = 0;
-        if (netty_unix_socket_setOption0(fd, IPPROTO_IPV6, IPV6_V6ONLY, &optval, sizeof(optval)) < 0) {
-            if (errno != EAFNOSUPPORT) {
-                netty_unix_socket_setOptionHandleError(env, errno);
-                // Something went wrong so close the fd and return here. setOption(...) itself throws the exception already.
-                close(fd);
-                return -1;
-            }
-            // else we failed to enable dual stack mode.
-            // It is assumed the socket is re‐stricted to sending and receiving IPv6 packets only.
-            // Don't close fd and don't return -1. At best we can do is log.
-            // TODO: bubble this up to an actual Logger.
+        if (netty_unix_socket_enableDualStack(env, fd) == -1) {
+            return -1;
         }
     }
     return fd;
@@ -1327,7 +1334,7 @@ jint netty_unix_socket_JNI_OnLoad(JNIEnv* env, const char* packagePrefix) {
             dynamicMethodsTableSize()) != 0) {
         goto done;
     }
-  
+
     NETTY_JNI_UTIL_PREPEND(packagePrefix, "io/netty/channel/unix/DatagramSocketAddress", nettyClassName, done);
 
     NETTY_JNI_UTIL_LOAD_CLASS_WEAK(env, datagramSocketAddressClassWeak, nettyClassName, done);
