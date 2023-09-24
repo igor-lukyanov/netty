@@ -680,7 +680,7 @@ static void netty_epoll_linuxsocket_getTcpInfo(JNIEnv* env, jclass clazz, jint f
 
 static jint netty_epoll_linuxsocket_newMpTcpSocketStreamFd(JNIEnv* env, jclass clazz, jboolean ipv6) {
     int domain = ipv6 == JNI_TRUE ? AF_INET6 : AF_INET;
-    int fd = netty_unix_socket_nonBlockingSocket(domain, type, IPPROTO_MPTCP);
+    int fd = netty_unix_socket_nonBlockingSocket(domain, SOCK_STREAM, IPPROTO_MPTCP);
     if (fd == -1) {
         return -errno;
     } else if (domain == AF_INET6) {
@@ -729,38 +729,37 @@ static void netty_epoll_linuxsocket_getMpTcpInfo(JNIEnv* env, jclass clazz, jint
 
     unsigned char* p = mptcp_info;
 
-    unsigned char* p = (unsigned char*) mptcp_info_region;
-        // Expand to 64 bits, then cast away unsigned-ness.
-        if(runtime_linux_version.major > 5 || (runtime_linux_version.major == 5 && runtime_linux_version.minor >= 9)) {
-            cArray[0] = (jlong) (uint64_t) *p++; // __u8 mptcpi_subflows
-            cArray[1] = (jlong) (uint64_t) *p++; // __u8 mptcpi_add_addr_signal
-            cArray[2] = (jlong) (uint64_t) *p++; // __u8 mptcpi_add_addr_accepted
-            cArray[3] = (jlong) (uint64_t) *p++; // __u8 mptcpi_subflows_max
-            cArray[4] = (jlong) (uint64_t) *p++; // __u8 mptcpi_add_addr_signal_max
-            cArray[5] = (jlong) (uint64_t) *p++; //__u8 mptcpi_add_addr_accepted_max
-            cArray[6] = (jlong) (uint64_t) *((__u32*)p); p += 4; // __u32 mptcpi_flags
-            cArray[7] = (jlong) (uint64_t) *((__u32*)p); p += 4; // __u32 mptcpi_token
-            cArray[8] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_write_seq
-            cArray[9] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_snd_una
-            cArray[10] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_rcv_nxt
-        }
+    // Expand to 64 bits, then cast away unsigned-ness.
+    if(runtime_kernel_version.major > 5 || (runtime_kernel_version.major == 5 && runtime_kernel_version.minor >= 9)) {
+        cArray[0] = (jlong) (uint64_t) *p++; // __u8 mptcpi_subflows
+        cArray[1] = (jlong) (uint64_t) *p++; // __u8 mptcpi_add_addr_signal
+        cArray[2] = (jlong) (uint64_t) *p++; // __u8 mptcpi_add_addr_accepted
+        cArray[3] = (jlong) (uint64_t) *p++; // __u8 mptcpi_subflows_max
+        cArray[4] = (jlong) (uint64_t) *p++; // __u8 mptcpi_add_addr_signal_max
+        cArray[5] = (jlong) (uint64_t) *p++; //__u8 mptcpi_add_addr_accepted_max
+        cArray[6] = (jlong) (uint64_t) *((__u32*)p); p += 4; // __u32 mptcpi_flags
+        cArray[7] = (jlong) (uint64_t) *((__u32*)p); p += 4; // __u32 mptcpi_token
+        cArray[8] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_write_seq
+        cArray[9] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_snd_una
+        cArray[10] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_rcv_nxt
+    }
 
-        if (runtime_linux_version.major > 5 || (runtime_linux_version.major == 5 && runtime_linux_version.minor >= 12)) {
-            cArray[11] = (jlong) (uint64_t) *p++; //__u8 mptcpi_local_addr_used
-            cArray[12] = (jlong) (uint64_t) *p++; //__u8 mptcpi_local_addr_max
-        }
+    if (runtime_kernel_version.major > 5 || (runtime_kernel_version.major == 5 && runtime_kernel_version.minor >= 12)) {
+        cArray[11] = (jlong) (uint64_t) *p++; //__u8 mptcpi_local_addr_used
+        cArray[12] = (jlong) (uint64_t) *p++; //__u8 mptcpi_local_addr_max
+    }
 
-        if (runtime_linux_version.major > 5 || (runtime_linux_version.major == 5 && runtime_linux_version.minor >= 14)) {
-            cArray[13] = (jlong) (uint64_t) *p++; //__u8 mptcpi_csum_enabled
-        }
+    if (runtime_kernel_version.major > 5 || (runtime_kernel_version.major == 5 && runtime_kernel_version.minor >= 14)) {
+        cArray[13] = (jlong) (uint64_t) *p++; //__u8 mptcpi_csum_enabled
+    }
 
-        if (runtime_linux_version.major >= 6 || (runtime_linux_version.major == 6 && runtime_linux_version.minor >= 5)) {
-            cArray[14] = (jlong) (uint64_t) *((__u32*)p); p += 4; // __u32 mptcpi_retransmits
-            cArray[15] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_bytes_retrans
-            cArray[16] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_bytes_sent
-            cArray[17] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_bytes_received
-            cArray[18] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_bytes_acked
-        }
+    if (runtime_kernel_version.major >= 6 || (runtime_kernel_version.major == 6 && runtime_kernel_version.minor >= 5)) {
+        cArray[14] = (jlong) (uint64_t) *((__u32*)p); p += 4; // __u32 mptcpi_retransmits
+        cArray[15] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_bytes_retrans
+        cArray[16] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_bytes_sent
+        cArray[17] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_bytes_received
+        cArray[18] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_bytes_acked
+    }
 
     (*env)->SetLongArrayRegion(env, array, 0, num_of_fields, cArray);
 }
