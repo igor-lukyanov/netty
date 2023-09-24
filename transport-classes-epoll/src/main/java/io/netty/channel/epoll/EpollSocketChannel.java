@@ -83,6 +83,11 @@ public final class EpollSocketChannel extends AbstractEpollStreamChannel impleme
         return tcpInfo(new EpollTcpInfo());
     }
 
+    public EpollMpTcpInfo mpTcpInfo() {
+        return mpTcpInfo(new EpollMpTcpInfo());
+    }
+
+
     /**
      * Updates and returns the {@code TCP_INFO} for the current socket.
      * See <a href="https://linux.die.net//man/7/tcp">man 7 tcp</a>.
@@ -90,6 +95,18 @@ public final class EpollSocketChannel extends AbstractEpollStreamChannel impleme
     public EpollTcpInfo tcpInfo(EpollTcpInfo info) {
         try {
             socket.getTcpInfo(info);
+            return info;
+        } catch (IOException e) {
+            throw new ChannelException(e);
+        }
+    }
+
+    /**
+     * Updates and returns the {@code MPTCP_INFO} for the current socket.
+     */
+    public EpollMpTcpInfo mpTcpInfo(EpollMpTcpInfo info) {
+        try {
+            socket.getMpTcpInfo(info);
             return info;
         } catch (IOException e) {
             throw new ChannelException(e);

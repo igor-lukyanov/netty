@@ -27,7 +27,9 @@
 #include <netinet/in.h>
 #include <netinet/udp.h> // SOL_UDP
 #include <sys/sendfile.h>
+#include <sys/socket.h>
 #include <linux/tcp.h> // TCP_NOTSENT_LOWAT is a linux specific define
+
 #include "netty_epoll_linuxsocket.h"
 #include "netty_epoll_vmsocket.h"
 #include "netty_unix_errors.h"
@@ -35,6 +37,7 @@
 #include "netty_unix_jni.h"
 #include "netty_unix_socket.h"
 #include "netty_unix_util.h"
+#include "kernel_version.h"
 
 #define LINUXSOCKET_CLASSNAME "io/netty/channel/epoll/LinuxSocket"
 
@@ -66,6 +69,25 @@
 // IPPROTO_MPTCP is defined in linux 5.6. We define this here so older kernels can compile.
 #ifndef IPPROTO_MPTCP
 #define IPPROTO_MPTCP 262
+#endif
+
+#ifndef SOL_MPTCP
+#define SOL_MPTCP 284
+#endif
+
+// MPTCP_INFO is defined in linux 5.16. We define this here so older kernels can compile.
+#ifndef MPTCP_INFO
+#define MPTCP_INFO 1
+#endif
+
+// MPTCP_TCPINFO is defined in linux 5.16. We define this here so older kernels can compile.
+#ifndef MPTCP_TCPINFO
+#define MPTCP_TCPINFO 2
+#endif
+
+// MPTCP_SUBFLOW_ADDRS is defined in linux 5.16. We define this here so older kernels can compile.
+#ifndef MPTCP_SUBFLOW_ADDRS
+#define MPTCP_SUBFLOW_ADDRS 3
 #endif
 
 static jweak peerCredentialsClassWeak = NULL;
@@ -669,48 +691,79 @@ static jint netty_epoll_linuxsocket_newMpTcpSocketStreamFd(JNIEnv* env, jclass c
     return fd;
 }
 
-//static void netty_epoll_linuxsocket_getMpTcpInfo(JNIEnv* env, jclass clazz, jint fd, jlongArray array) {
-//     struct tcp_info tcp_info;
-//     if (netty_unix_socket_getOption(env, fd, IPPROTO_MPTCP, MPTCP_INFO, &tcp_info, sizeof(tcp_info)) == -1) {
-//         return;
-//     }
-//     jlong cArray[32];
-//     // Expand to 64 bits, then cast away unsigned-ness.
-//     cArray[0] = (jlong) (uint64_t) tcp_info.tcpi_state;
-//     cArray[1] = (jlong) (uint64_t) tcp_info.tcpi_ca_state;
-//     cArray[2] = (jlong) (uint64_t) tcp_info.tcpi_retransmits;
-//     cArray[3] = (jlong) (uint64_t) tcp_info.tcpi_probes;
-//     cArray[4] = (jlong) (uint64_t) tcp_info.tcpi_backoff;
-//     cArray[5] = (jlong) (uint64_t) tcp_info.tcpi_options;
-//     cArray[6] = (jlong) (uint64_t) tcp_info.tcpi_snd_wscale;
-//     cArray[7] = (jlong) (uint64_t) tcp_info.tcpi_rcv_wscale;
-//     cArray[8] = (jlong) (uint64_t) tcp_info.tcpi_rto;
-//     cArray[9] = (jlong) (uint64_t) tcp_info.tcpi_ato;
-//     cArray[10] = (jlong) (uint64_t) tcp_info.tcpi_snd_mss;
-//     cArray[11] = (jlong) (uint64_t) tcp_info.tcpi_rcv_mss;
-//     cArray[12] = (jlong) (uint64_t) tcp_info.tcpi_unacked;
-//     cArray[13] = (jlong) (uint64_t) tcp_info.tcpi_sacked;
-//     cArray[14] = (jlong) (uint64_t) tcp_info.tcpi_lost;
-//     cArray[15] = (jlong) (uint64_t) tcp_info.tcpi_retrans;
-//     cArray[16] = (jlong) (uint64_t) tcp_info.tcpi_fackets;
-//     cArray[17] = (jlong) (uint64_t) tcp_info.tcpi_last_data_sent;
-//     cArray[18] = (jlong) (uint64_t) tcp_info.tcpi_last_ack_sent;
-//     cArray[19] = (jlong) (uint64_t) tcp_info.tcpi_last_data_recv;
-//     cArray[20] = (jlong) (uint64_t) tcp_info.tcpi_last_ack_recv;
-//     cArray[21] = (jlong) (uint64_t) tcp_info.tcpi_pmtu;
-//     cArray[22] = (jlong) (uint64_t) tcp_info.tcpi_rcv_ssthresh;
-//     cArray[23] = (jlong) (uint64_t) tcp_info.tcpi_rtt;
-//     cArray[24] = (jlong) (uint64_t) tcp_info.tcpi_rttvar;
-//     cArray[25] = (jlong) (uint64_t) tcp_info.tcpi_snd_ssthresh;
-//     cArray[26] = (jlong) (uint64_t) tcp_info.tcpi_snd_cwnd;
-//     cArray[27] = (jlong) (uint64_t) tcp_info.tcpi_advmss;
-//     cArray[28] = (jlong) (uint64_t) tcp_info.tcpi_reordering;
-//     cArray[29] = (jlong) (uint64_t) tcp_info.tcpi_rcv_rtt;
-//     cArray[30] = (jlong) (uint64_t) tcp_info.tcpi_rcv_space;
-//     cArray[31] = (jlong) (uint64_t) tcp_info.tcpi_total_retrans;
-//
-//     (*env)->SetLongArrayRegion(env, array, 0, 32, cArray);
-//}
+static void netty_epoll_linuxsocket_getMpTcpInfo(JNIEnv* env, jclass clazz, jint fd, jlongArray array) {
+    //struct mptcp_info {
+    //        __u8    mptcpi_subflows; // structure with initial fields added in 5.9
+    //        __u8    mptcpi_add_addr_signal;
+    //        __u8    mptcpi_add_addr_accepted;
+    //        __u8    mptcpi_subflows_max;
+    //        __u8    mptcpi_add_addr_signal_max;
+    //        __u8    mptcpi_add_addr_accepted_max;
+    //        __u32   mptcpi_flags;
+    //        __u32   mptcpi_token;
+    //        __u64   mptcpi_write_seq;
+    //        __u64   mptcpi_snd_una;
+    //        __u64   mptcpi_rcv_nxt;
+    //        __u8    mptcpi_local_addr_used; // added in 5.12
+    //        __u8    mptcpi_local_addr_max; // added in 5.12
+    //        __u8    mptcpi_csum_enabled; // added in 5.14
+    //        __u32   mptcpi_retransmits; // added in 6.5
+    //        __u64   mptcpi_bytes_retrans; //added in 6.5
+    //        __u64   mptcpi_bytes_sent; //added in 6.5
+    //        __u64   mptcpi_bytes_received; //added in 6.5
+    //        __u64   mptcpi_bytes_acked; //added in 6.5
+    //};
+
+    int num_of_fields = 19;
+    unsigned char mptcp_info[num_of_fields * sizeof(uint64_t)]; // Use stack memory instead of heap
+
+    if (netty_unix_socket_getOption(env, fd, IPPROTO_MPTCP, MPTCP_INFO, mptcp_info, sizeof(mptcp_info)) == -1) {
+         return;
+    }
+
+    jlong cArray[num_of_fields];
+    // -1 takes place if the runtime kernel doesn't have the field
+    for (int i = 0; i < num_of_fields; i++) {
+        cArray[i] = -1;
+    }
+
+    unsigned char* p = mptcp_info;
+
+    unsigned char* p = (unsigned char*) mptcp_info_region;
+        // Expand to 64 bits, then cast away unsigned-ness.
+        if(runtime_linux_version.major > 5 || (runtime_linux_version.major == 5 && runtime_linux_version.minor >= 9)) {
+            cArray[0] = (jlong) (uint64_t) *p++; // __u8 mptcpi_subflows
+            cArray[1] = (jlong) (uint64_t) *p++; // __u8 mptcpi_add_addr_signal
+            cArray[2] = (jlong) (uint64_t) *p++; // __u8 mptcpi_add_addr_accepted
+            cArray[3] = (jlong) (uint64_t) *p++; // __u8 mptcpi_subflows_max
+            cArray[4] = (jlong) (uint64_t) *p++; // __u8 mptcpi_add_addr_signal_max
+            cArray[5] = (jlong) (uint64_t) *p++; //__u8 mptcpi_add_addr_accepted_max
+            cArray[6] = (jlong) (uint64_t) *((__u32*)p); p += 4; // __u32 mptcpi_flags
+            cArray[7] = (jlong) (uint64_t) *((__u32*)p); p += 4; // __u32 mptcpi_token
+            cArray[8] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_write_seq
+            cArray[9] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_snd_una
+            cArray[10] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_rcv_nxt
+        }
+
+        if (runtime_linux_version.major > 5 || (runtime_linux_version.major == 5 && runtime_linux_version.minor >= 12)) {
+            cArray[11] = (jlong) (uint64_t) *p++; //__u8 mptcpi_local_addr_used
+            cArray[12] = (jlong) (uint64_t) *p++; //__u8 mptcpi_local_addr_max
+        }
+
+        if (runtime_linux_version.major > 5 || (runtime_linux_version.major == 5 && runtime_linux_version.minor >= 14)) {
+            cArray[13] = (jlong) (uint64_t) *p++; //__u8 mptcpi_csum_enabled
+        }
+
+        if (runtime_linux_version.major >= 6 || (runtime_linux_version.major == 6 && runtime_linux_version.minor >= 5)) {
+            cArray[14] = (jlong) (uint64_t) *((__u32*)p); p += 4; // __u32 mptcpi_retransmits
+            cArray[15] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_bytes_retrans
+            cArray[16] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_bytes_sent
+            cArray[17] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_bytes_received
+            cArray[18] = (jlong) (uint64_t) *((__u64*)p); p += 8; // __u64 mptcpi_bytes_acked
+        }
+
+    (*env)->SetLongArrayRegion(env, array, 0, num_of_fields, cArray);
+}
 
 static jint netty_epoll_linuxsocket_isTcpCork(JNIEnv* env, jclass clazz, jint fd) {
     int optval;
@@ -865,7 +918,8 @@ static const JNINativeMethod fixed_method_table[] = {
   { "leaveSsmGroup", "(IZ[B[BII[B)V", (void *) netty_epoll_linuxsocket_leaveSsmGroup },
   { "isUdpGro", "(I)I", (void *) netty_epoll_linuxsocket_isUdpGro },
   { "setUdpGro", "(II)V", (void *) netty_epoll_linuxsocket_setUdpGro },
-  { "newMpTcpSocketStreamFd", "(Z)I", (void *) netty_epoll_linuxsocket_newMpTcpSocketStreamFd }
+  { "newMpTcpSocketStreamFd", "(Z)I", (void *) netty_epoll_linuxsocket_newMpTcpSocketStreamFd },
+  { "getMpTcpInfo", "(I[J)V", (void *) netty_epoll_linuxsocket_getMpTcpInfo },
 
   // "sendFile" has a dynamic signature
 };

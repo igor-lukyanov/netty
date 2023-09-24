@@ -229,6 +229,10 @@ public final class LinuxSocket extends Socket {
         getTcpInfo(intValue(), info.info);
     }
 
+    void getMpTcpInfo(EpollMpTcpInfo info) throws IOException {
+        getTcpInfo(intValue(), info.info);
+    }
+
     void setTcpMd5Sig(InetAddress address, byte[] key) throws IOException {
         final NativeInetAddress a = NativeInetAddress.newInstance(address);
         setTcpMd5Sig(intValue(), ipv6, a.address(), a.scopeId(), key);
@@ -469,8 +473,8 @@ public final class LinuxSocket extends Socket {
     private static native int isIpTransparent(int fd) throws IOException;
     private static native int isIpRecvOrigDestAddr(int fd) throws IOException;
     private static native void getTcpInfo(int fd, long[] array) throws IOException;
+    private static native void getMpTcpInfo(int fd, long[] array) throws IOException;
     private static native PeerCredentials getPeerCredentials(int fd) throws IOException;
-
     private static native void setTcpDeferAccept(int fd, int deferAccept) throws IOException;
     private static native void setTcpQuickAck(int fd, int quickAck) throws IOException;
     private static native void setTcpCork(int fd, int tcpCork) throws IOException;
