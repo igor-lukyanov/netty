@@ -13,6 +13,4 @@ typedef struct {
 
 kernel_version get_kernel_version();
 
-extern kernel_version runtime_kernel_version;
-
 #endif // KERNEL_VERSION_H

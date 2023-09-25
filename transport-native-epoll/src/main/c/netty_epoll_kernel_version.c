@@ -21,5 +21,3 @@ kernel_version get_kernel_version() {
 
     return kv;
 }
-
-kernel_version runtime_kernel_version = get_kernel_version();

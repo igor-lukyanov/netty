@@ -90,6 +90,8 @@
 #define MPTCP_SUBFLOW_ADDRS 3
 #endif
 
+static kernel_version runtime_kernel_version = get_kernel_version();
+
 static jweak peerCredentialsClassWeak = NULL;
 static jmethodID peerCredentialsMethodId = NULL;
 
