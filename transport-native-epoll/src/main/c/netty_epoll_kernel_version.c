@@ -1,4 +1,4 @@
-#include "kernel_version.h"
+#include "netty_epoll_kernel_version.h"
 
 kernel_version get_kernel_version() {
     struct utsname buffer;

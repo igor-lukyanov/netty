@@ -37,7 +37,7 @@
 #include "netty_unix_jni.h"
 #include "netty_unix_socket.h"
 #include "netty_unix_util.h"
-#include "kernel_version.h"
+#include "netty_epoll_kernel_version.h"
 
 #define LINUXSOCKET_CLASSNAME "io/netty/channel/epoll/LinuxSocket"
 
