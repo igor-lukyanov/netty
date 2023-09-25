@@ -90,8 +90,6 @@
 #define MPTCP_SUBFLOW_ADDRS 3
 #endif
 
-static kernel_version runtime_kernel_version = get_kernel_version();
-
 static jweak peerCredentialsClassWeak = NULL;
 static jmethodID peerCredentialsMethodId = NULL;
 
@@ -99,6 +97,8 @@ static jfieldID fileChannelFieldId = NULL;
 static jfieldID transferredFieldId = NULL;
 static jfieldID fdFieldId = NULL;
 static jfieldID fileDescriptorFieldId = NULL;
+
+static kernel_version runtime_kernel_version;
 
 // JNI Registered Methods Begin
 static jint netty_epoll_linuxsocket_newVSockStreamFd(JNIEnv* env, jclass clazz) {
@@ -1024,4 +1024,5 @@ void netty_epoll_linuxsocket_JNI_OnUnLoad(JNIEnv* env, const char* packagePrefix
     NETTY_JNI_UTIL_UNLOAD_CLASS_WEAK(env, peerCredentialsClassWeak);
 
     netty_jni_util_unregister_natives(env, packagePrefix, LINUXSOCKET_CLASSNAME);
+    runtime_kernel_version = get_kernel_version();
 }
