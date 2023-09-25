@@ -87,7 +87,6 @@ public final class EpollSocketChannel extends AbstractEpollStreamChannel impleme
         return mpTcpInfo(new EpollMpTcpInfo());
     }
 
-
     /**
      * Updates and returns the {@code TCP_INFO} for the current socket.
      * See <a href="https://linux.die.net//man/7/tcp">man 7 tcp</a>.
